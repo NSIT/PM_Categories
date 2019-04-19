@@ -1,7 +1,10 @@
-
 #10112918 -Apple
 #10920229 -Microsoft Surface
 #10367579 -Lenovo PCG|DCG
+#10940320 -Intel
+#10016589 -Microsoft OS
+#10798466 -AMD
+
 
 sr_tables={
            '10112918':
@@ -43,7 +46,6 @@ sr_tables={
                 {'cto_flag':False
 
                  ,'analyst':'yunior.rosellruiz@insight'}
-
           ,'10367579':
                 {'cto_flag':True,
                   'cto_str_proc':"""
@@ -119,6 +121,120 @@ sr_tables={
 									            END
 
 			            Where ##PM_cat_temp.[Partner_Category 1] = 'PCG' and ##PM_cat_temp.[Partner_Category 4] is null                         
+              """
+             ,'analyst':'yunior.rosellruiz@insight'}
+          ,'10940320':
+                {'cto_flag':True,
+                  'cto_str_proc':"""
+
+                  	--Synchronize the target table with refreshed data from source table
+	                MERGE [pm_na].[pm_categories_prd] AS TARGET
+	                USING [pm_na].[pm_categories_comp_stg] AS SOURCE
+
+	                ON (Target.[key]=Source.[Partrner_SR_SoldTo]+'|'+Source.Material and SOURCE.[Component_Type]='Processor')
+
+	                --When records are matched, update the records if there is any change
+	                WHEN MATCHED 
+	
+	                 THEN UPDATE SET 
+		                 TARGET.[Processor_MFR]=SOURCE.[Component]
+		                ,TARGET.[Processor_Model]=SOURCE.[Component_Model]
+		                ,TARGET.[Processor_QTY]=SOURCE.[Component_QTY]
+	
+	                --When no records are matched, insert the incoming records from source table to target table
+	                WHEN NOT MATCHED BY TARGET
+	                   THEN INSERT (
+	                    [key]
+	                   ,[sr_soldto]
+	                   ,Material
+	                   ,[Processor_MFR]
+	                   ,[Processor_Model]
+	                   ,[Processor_QTY]
+	   
+	                   ) 
+	                   VALUES 
+	                   (Source.[Partrner_SR_SoldTo]+'|'+Source.Material
+	                   ,SOURCE.[Partrner_SR_SoldTo]
+	                   ,SOURCE.Material
+	                   ,SOURCE.[Component]
+	                   ,SOURCE.[Component_Model]
+	                   ,SOURCE.[Component_QTY]);
+              """
+             ,'analyst':'yunior.rosellruiz@insight'}
+          ,'10016589':
+                {'cto_flag':True,
+                  'cto_str_proc':"""
+
+                  	--Synchronize the target table with refreshed data from source table
+	                MERGE [pm_na].[pm_categories_prd] AS TARGET
+	                USING [pm_na].[pm_categories_comp_stg] AS SOURCE
+
+	                ON (Target.[key]=Source.[Partrner_SR_SoldTo]+'|'+Source.Material and SOURCE.[Component_Type]='Processor')
+
+	                --When records are matched, update the records if there is any change
+	                WHEN MATCHED 
+	
+	                 THEN UPDATE SET 
+		                 TARGET.[Processor_MFR]=SOURCE.[Component]
+		                ,TARGET.[Processor_Model]=SOURCE.[Component_Model]
+		                ,TARGET.[Processor_QTY]=SOURCE.[Component_QTY]
+	
+	                --When no records are matched, insert the incoming records from source table to target table
+	                WHEN NOT MATCHED BY TARGET
+	                   THEN INSERT (
+	                    [key]
+	                   ,[sr_soldto]
+	                   ,Material
+	                   ,[Processor_MFR]
+	                   ,[Processor_Model]
+	                   ,[Processor_QTY]
+	   
+	                   ) 
+	                   VALUES 
+	                   (Source.[Partrner_SR_SoldTo]+'|'+Source.Material
+	                   ,SOURCE.[Partrner_SR_SoldTo]
+	                   ,SOURCE.Material
+	                   ,SOURCE.[Component]
+	                   ,SOURCE.[Component_Model]
+	                   ,SOURCE.[Component_QTY]);
+              """
+             ,'analyst':'yunior.rosellruiz@insight'}
+          ,'10798466':
+                {'cto_flag':True,
+                  'cto_str_proc':"""
+
+                  	--Synchronize the target table with refreshed data from source table
+	                MERGE [pm_na].[pm_categories_prd] AS TARGET
+	                USING [pm_na].[pm_categories_comp_stg] AS SOURCE
+
+	                ON (Target.[key]=Source.[Partrner_SR_SoldTo]+'|'+Source.Material and SOURCE.[Component_Type]='OS')
+
+	                --When records are matched, update the records if there is any change
+	                WHEN MATCHED 
+	
+	                 THEN UPDATE SET 
+		                 TARGET.[Processor_MFR]=SOURCE.[Component]
+		                ,TARGET.[Processor_Model]=SOURCE.[Component_Model]
+		                ,TARGET.[Processor_QTY]=SOURCE.[Component_QTY]
+	
+	                --When no records are matched, insert the incoming records from source table to target table
+	                WHEN NOT MATCHED BY TARGET
+	                   THEN INSERT (
+	                    [key]
+	                   ,[sr_soldto]
+	                   ,Material
+	                   ,[Processor_MFR]
+	                   ,[Processor_Model]
+	                   ,[Processor_QTY]
+	   
+	                   ) 
+	                   VALUES 
+	                   (Source.[Partrner_SR_SoldTo]+'|'+Source.Material
+	                   ,SOURCE.[Partrner_SR_SoldTo]
+	                   ,SOURCE.Material
+	                   ,SOURCE.[Component]
+	                   ,SOURCE.[Component_Model]
+	                   ,SOURCE.[Component_QTY]);
               """
              ,'analyst':'yunior.rosellruiz@insight'}
            }

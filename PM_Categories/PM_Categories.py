@@ -18,8 +18,8 @@ from    email import encoders
 from  dictionary_list import sr_tables
 from    config import *
 from    sqlalchemy import create_engine
+from    sqlalchemy import types as clm_type
 
-stg_table="pm_categories_stg"
 
 def send_email(subject,content,to,files):
     msg = MIMEMultipart()
@@ -68,28 +68,25 @@ def attachment(fileToSend):
 
     return attachment
 
-def push(table):
-        #Update parts table
+def push(table,stg_table,store_procedure):
+    #Update parts table
     table.to_sql(con=engine,if_exists="replace",schema="pm_na",index=False,name=stg_table)
-
-    #stored procedure to update prod table
-    store_procedure="EXEC [dbo].[pm_categories]"
-
     connection = engine.raw_connection()
-        
-    #close connection stored proc fails
-    try:
-        cursor = connection.cursor()
-        cursor.execute(store_procedure)          
-        cursor.close()
-        connection.commit()
-    finally:
-        connection.close()
+    
+    if  store_procedure: 
+        #close connection stored proc fails
+        try:
+            cursor = connection.cursor()
+            cursor.execute(store_procedure)          
+            cursor.close()
+            connection.commit()
+        finally:
+            connection.close()
 
     return
 
 def main():
-            #if len(sys.argv)>1:
+    #if len(sys.argv)>1:
     #    subject=sys.argv[2] 
     #    files=sys.argv[4] 
     #    sender=sys.argv[6]
@@ -97,18 +94,27 @@ def main():
     #    sr_soldto=sys.argv[0] 
 
     ###testing
-    subject="None"
-    files='pm_categories.xlsx'
+    subject="mapping=standard"
+    files='pm_categories_stnd.xlsx'
     sender='yunior.rosellruiz@insight.com'
+    mp_rgx=re.search("mapping\s?=\s?(.+)",subject,re.RegexFlag.IGNORECASE) 
+    mapping= mp_rgx.group(1) if mp_rgx else None
    
 
     try:
-        parts=pd.read_excel(files,'parts',index_col=False).astype(str) 
-        parts['sender']=sender
-        parts['append_date']= d.datetime.now()  
-        push(parts)
 
-        sr_soldtos= parts['sr_soldto'].unique()
+        if not mapping:
+            raise Exception ("Check mapping in subject line. Sample mapping=standard ")
+        
+        parts=pd.read_excel(files,'parts',index_col=False).astype(str)
+        parts['sender']=sender
+        parts['append_date']= d.datetime.now()
+        
+        stg_table = "pm_categories_stg" if mapping=="standard" else "pm_categories_comp_stg" if mapping=="component" else None
+        store_procedure="EXEC [dbo].[pm_categories]" if mapping=="standard" else None 
+        push(parts,stg_table,store_procedure)
+
+        sr_soldtos= parts['sr_soldto'].unique() if mapping=="standard" else parts['Component_SR_SoldTo'].unique() if mapping=="component" else None
 
         for sr_soldto in sr_soldtos: 
             
@@ -118,9 +124,9 @@ def main():
                 connection = engine.raw_connection()
 
                 #stored procedure to update prod table
-                query=sr_table['cto_str_proc'].replace("'","''")
+                query=sr_table['cto_str_proc'].replace("'","''") if mapping=="standard" else sr_table['cto_str_proc']
                 
-                store_procedure ="EXEC [dbo].[pm_categories_sp] @sr_soldto = N'{s}', @query = N'{q}'".format(s=sr_soldto,q=query)                                
+                store_procedure ="EXEC [dbo].[pm_categories_sp] @sr_soldto = N'{s}', @query = N'{q}'".format(s=sr_soldto,q=query) if mapping=="standard" else query if mapping=="component" else None                                  
                 try:
                     cursor = connection.cursor()
                     cursor.execute(store_procedure)          
@@ -129,8 +135,9 @@ def main():
                 finally:
                     #close connection stored proc fails
                     connection.close()
- 
-        content = "Please see attached"
+
+
+        content = "Success!"
         subject = "Partner Categories"
         to= sender
         send_email(subject,content,to,None)
