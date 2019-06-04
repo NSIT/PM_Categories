@@ -15,10 +15,11 @@ from    email.mime.base import MIMEBase
 from    email.mime.image import MIMEImage
 from    email.mime.text import MIMEText
 from    email import encoders
-from  dictionary_list import sr_tables
+from    dictionary_list import sr_tables
 from    config import *
 from    sqlalchemy import create_engine
 from    sqlalchemy import types as clm_type
+import  numpy as np
 
 
 def send_email(subject,content,to,files):
@@ -70,7 +71,7 @@ def attachment(fileToSend):
 
 def push(table,stg_table,store_procedure):
     #Update parts table
-    table.to_sql(con=engine,if_exists="replace",schema="pm_na",index=False,name=stg_table)
+    table.to_sql(con=engine,if_exists="replace",schema="pm_na",index=False,name=stg_table,chunksize=100)
     connection = engine.raw_connection()
     
     if  store_procedure: 
@@ -85,74 +86,125 @@ def push(table,stg_table,store_procedure):
 
     return
 
-def main():
-    #if len(sys.argv)>1:
-    #    subject=sys.argv[2] 
-    #    files=sys.argv[4] 
-    #    sender=sys.argv[6]
-    #else:
-    #    sr_soldto=sys.argv[0] 
-
-    ###testing
-    subject="mapping=standard"
-    files='pm_categories_stnd.xlsx'
-    sender='yunior.rosellruiz@insight.com'
-    mp_rgx=re.search("mapping\s?=\s?(.+)",subject,re.RegexFlag.IGNORECASE) 
-    mapping= mp_rgx.group(1) if mp_rgx else None
-   
-
+def runCTO():
+    
+    to = 'yunior.rosellruiz@insight.com'
     try:
 
-        if not mapping:
-            raise Exception ("Check mapping in subject line. Sample mapping=standard ")
-        
-        parts=pd.read_excel(files,'parts',index_col=False).astype(str)
-        parts['sender']=sender
-        parts['append_date']= d.datetime.now()
-        
-        stg_table = "pm_categories_stg" if mapping=="standard" else "pm_categories_comp_stg" if mapping=="component" else None
-        store_procedure="EXEC [dbo].[pm_categories]" if mapping=="standard" else None 
-        push(parts,stg_table,store_procedure)
-
-        sr_soldtos= parts['sr_soldto'].unique() if mapping=="standard" else parts['Component_SR_SoldTo'].unique() if mapping=="component" else None
-
-        for sr_soldto in sr_soldtos: 
-            
-            sr_table=sr_tables.get(sr_soldto)
-
-            if sr_table and sr_table['cto_flag']:
-                connection = engine.raw_connection()
-
-                #stored procedure to update prod table
-                query=sr_table['cto_str_proc'].replace("'","''") if mapping=="standard" else sr_table['cto_str_proc']
-                
-                store_procedure ="EXEC [dbo].[pm_categories_sp] @sr_soldto = N'{s}', @query = N'{q}'".format(s=sr_soldto,q=query) if mapping=="standard" else query if mapping=="component" else None                                  
-                try:
-                    cursor = connection.cursor()
-                    cursor.execute(store_procedure)          
-                    cursor.close()
-                    connection.commit()
-                finally:
-                    #close connection stored proc fails
-                    connection.close()
-
-
-        content = "Success!"
-        subject = "Partner Categories"
-        to= sender
-        send_email(subject,content,to,None)
-                    
+        for s in sr_tables:
+            sr_soldto = sr_tables.get(s)
+            connection = engine.connect()
+            if sr_soldto['cto_flag']==True:
+                    #stored procedure to update prod table
+                    query=sr_soldto['cto_str_proc'].replace("'","''")                
+                    store_procedure ="EXEC [dbo].[pm_categories] @query={q}".format(q="'"+ query +"'")                
+                    try:
+                        #cursor = connection.cursor()
+                        connection.execute(store_procedure)          
+                        connection.close()
+                        #connection.commit()
+                    except Exception as e:
+                        logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+                        logging.warning(str(e))
+                        content = "Something went wrong when running the daily PM CTO scripts for {s} \n{e}".format(e=str(e),s=s)
+                        subject = "Error: Daily PM CTO Partner"       
+                        send_email(subject,content,to,None)
+                    finally:
+                        #close connection stored proc fails
+                        connection.close()
     except Exception as e:
         logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
         logging.warning(str(e))
-        content = "Something went wrong please reach out to the BI Team\n{e}".format(e=str(e))
-        subject = "Error"
-        to = sender
+        content = "Something went wrong when running the daily PM CTO scripts\n {e}".format(e=str(e))
+        subject = "Error: Daily PM CTO"       
         send_email(subject,content,to,None)
+
+    content = "Success!"
+    subject = "Success: Daily PM CTO "
+    send_email(subject,content,to,None)
+
+    return
+
+def main():
+    #if len(sys.argv)>1:
+    subject=sys.argv[2] 
+    files=sys.argv[4] 
+    sender=sys.argv[6]
+    #to="yunior.rosellruiz@insight.com"
+    #send_email("FILES Mapping",files,to,None)
+    #else:
+    #    sr_soldto=sys.argv[0] 
+
+    ####testing
+    #subject="mapping=standard"
+    #files='pm_categories_stnd.xlsx'
+    #sender='yunior.rosellruiz@insight.com'
+    mp_rgx=re.search("mapping\s?=\s?(.+)",subject,re.RegexFlag.IGNORECASE) 
+    mapping= mp_rgx.group(1) if mp_rgx else None
+    to = sender
+
+    
+    for f in files.strip().replace(' ','').split(","): 
+
+        if not mapping:
+            subject="Check mapping in subject line. Sample mapping=standard "
+            content="Error"
+            send_email(subject,content,to,None)
+            break
+
+        try:           
+                parts=pd.read_excel(f,'parts',index_col=False).astype(str)
+                parts=parts.replace('nan',np.nan)
+                parts['sender']=sender
+                parts['append_date']= d.datetime.now()
+        
+                stg_table = "pm_categories_stg" if mapping=="standard" else "pm_categories_comp_stg" if mapping=="component" else None
+                store_procedure="EXEC [dbo].[pm_categories]" if mapping=="standard" else None 
+
+                #pushes parts from stg to prd
+                push(parts,stg_table,store_procedure)
+
+                sr_soldtos= parts['sr_soldto'].unique() if mapping=="standard" else parts['Component_SR_SoldTo'].unique() if mapping=="component" else None
+
+                for sr_soldto in sr_soldtos: 
+            
+                    sr_table=sr_tables.get(sr_soldto)
+
+                    if sr_table and sr_table['cto_flag']:
+                        connection = engine.raw_connection()
+
+                        #stored procedure to update prod table
+                        query=sr_table['cto_str_proc'].replace("'","''") if mapping=="standard" else sr_table['cto_str_proc']
+                
+                        store_procedure ="EXEC [dbo].[pm_categories] @query={q}".format(q="'"+ query +"'" if query else "NULL") if mapping=="standard" else query if mapping=="component" else None                
+                        try:
+                            cursor = connection.cursor()
+                            cursor.execute(store_procedure)          
+                            cursor.close()
+                            connection.commit()
+                        finally:
+                            #close connection stored proc fails
+                            connection.close()
+
+
+                content = "Success!"
+                subject = "Partner Categories\n FILE:{_f}".format(_f=f)
+                to= sender
+                send_email(subject,content,to,None)
+                    
+        except Exception as e:
+            logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+            logging.warning(str(e))
+            content = "Something went wrong please reach out to the BI Team\n{e}".format(e=str(e))
+            subject = "Error"
+            send_email(subject,content,to,None)
 
     return
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv)>1 :
+        main()
+    else:
+        runCTO()
 
 
