@@ -1,23 +1,23 @@
-#10112918 -Apple
+#7000727 - Apple
 #10920229 -Microsoft Surface
-#10367579 -Lenovo PCG|DCG
+#7043701 - Lenovo PCG|DCG
 #10940320 -Intel
 #10466196 -Microsoft OS
 #10016589 -AMD
-#10357882 -Adobe
-#10986883 -Barco
-#10798467 -Net App
+#7000053 - Adobe
+#7021707 - Barco
+#7042044 - Net App
 #10274175 -Samsung
-#10278736 -Cisco
+#7000140 - Cisco
 
-sr_tables={
-           '10112918':
+mfr_table={
+           '7000727':
                 {'cto_flag':True,
                   'cto_str_proc':"""
-			          DECLARE @Sr_sold_to nvarchar(10)='10112918';
-                          SELECT        
-								         [key]=m.[SR_Sold_To] +'|'+ m.material
-                                        ,[sr_soldto]=m.SR_Sold_To
+			            DECLARE @mfr_id NVARCHAR(10)='7000727';
+                        SELECT        
+								         [key]=CONCAT(m.mfr, '|',  m.material)
+                                        ,[mfr_id]=COALESCE(m.mfr,p.mfr_id)
 				                        ,m.material
 				                        ,[material_type]= 'internal_part_cto_result'
 				                        ,[partner_category1]= p.[partner_category1]
@@ -30,30 +30,29 @@ sr_tables={
 				                        ,[sender]= p.[sender]
 				                        ,[append_date]=p.[append_date]
                                         ,[Material_Rebate]=p.[Material_Rebate]
-	                     INTO ##PM_cat_temp
+	                        INTO ##PM_cat_temp
                  
-				         FROM 
-					        [marketing_work].[pm_na].[pm_categories_prd] AS p
+				            FROM 
+				            [marketing_work].[pm_na].[pm_categories_prd] AS p
 
-			         LEFT JOIN 
-					        [marketing_prod].[dbo].[prod_material] AS m ON LEFT(m.material,4)=p.material and p.SR_SoldTo=m.SR_Sold_To
+			            LEFT JOIN 
+				            [marketing_prod].[dbo].[prod_material] AS m ON LEFT(m.material,4)=p.material and p.[mfr_id]=m.mfr
 
-			          WHERE 
-					         p.SR_SoldTo = @Sr_sold_to
-					         AND p.Material_type='internal_part_cto'
+			            WHERE 
+					            m.mfr = @mfr_id
+					            AND p.Material_type='internal_part_cto'
 
               """
              ,'analyst':'yunior.rosellruiz@insight'}
-          ,'10367579':
+          ,'7043701':
                 {'cto_flag':True,
                   'cto_str_proc':"""                
-					DECLARE @Sr_sold_to NVARCHAR(10)='10367579';
-
-	                SELECT DISTINCT
-				                 [key]=m.[SR_Sold_To] +'|'+ m.material
-                                ,[sr_soldto]=COALESCE(p.[sr_soldto],pc.[sr_soldto],m.SR_Sold_To)
+					DECLARE @mfr_id NVARCHAR(10)='7043701';	                
+                    SELECT DISTINCT
+				                 [key]=CONCAT(m.mfr, '|',  m.material)
+                                ,[mfr_id]=COALESCE(m.mfr,p.mfr_id,pc.mfr_id)
 				                ,m.material
-				                ,[material_type]= COALESCE (p.[material_type],pc.[material_type],'internal_part')
+				                ,[material_type]= COALESCE (p.[material_type],pc.[material_type],'internal_part_cto_result')
 				                ,[partner_category1]= COALESCE (p.[partner_category1],pc.[partner_category1])
 				                ,[partner_category2]= COALESCE (p.[partner_category2],pc.[partner_category2])
 				                ,[partner_category3]= COALESCE (p.[partner_category3],pc.[partner_category3])
@@ -82,21 +81,24 @@ sr_tables={
 				                CASE
 						                WHEN marketing_prod.dbo.fn_RegExMatchMatch(m.material,'-') > 0 THEN marketing_prod.dbo.fn_RegExReplace(m.material,'(-.+)','')
 						                WHEN marketing_prod.dbo.fn_RegExMatchMatch(m.material,'US') > 0 THEN marketing_prod.dbo.fn_RegExMatchReturn(m.material,'.+US')
-				                ELSE m.material END AND p.SR_SoldTo=m.SR_Sold_To
+				                ELSE m.material END AND p.mfr_id=m.mfr
 
 			                LEFT JOIN
-				                [marketing_work].[pm_na].[pm_categories_prd] AS pc on pc.Material=LEFT(m.material,4) AND pc.SR_SoldTo=m.SR_Sold_To
+				                [marketing_work].[pm_na].[pm_categories_prd] AS pc on pc.Material=LEFT(m.material,4) AND pc.mfr_id=m.mfr
 			 
 			                WHERE 
-					                m.SR_Sold_To = @Sr_sold_to	
+					                m.mfr in (@mfr_id,'7078126','7080559')
+									AND NOT EXISTS (SELECT TOP 1 1 FROM [marketing_work].[pm_na].[pm_categories_prd] as pp where pp.Material =m.material)	
 
 
 		                UPDATE ##PM_cat_temp
 		                SET [partner_category1]=	CASE WHEN marketing_prod.dbo.fn_RegExMatchMatch(material,'-SP')=1  THEN 'Spare Part'
-
 										                WHEN CatDash_level3 = 'Servers' and left(revised_material,2) <> '30' THEN 'DCG'
 										                WHEN len(revised_material) = 10 and left(revised_material,1) ='7' THEN 'DCG'
-									                ELSE 'PCG'END  
+									                ELSE 'PCG' END
+
+                        Where ##PM_cat_temp.[partner_category1] is null
+                                                    
 
 		                UPDATE ##PM_cat_temp
 		                SET [partner_category2]=CASE 
@@ -125,20 +127,19 @@ sr_tables={
 									                WHEN LEFT(revised_material,2) in ('10','20','30') THEN 'Commercial Proxy'
 								                END
 
-		                Where ##PM_cat_temp.[partner_category1] = 'PCG' and ##PM_cat_temp.[partner_category4] is null                 
+		                Where ##PM_cat_temp.[partner_category1] = 'PCG' and ##PM_cat_temp.[partner_category4] is null   
               """
              ,'analyst':'yunior.rosellruiz@insight'}
-          ,'10357882':
+          ,'7000053':
                 {'cto_flag':True,
                   'cto_str_proc':"""
-                       DROP TABLE IF EXISTS ##PM_cat_temp
-			            DECLARE @Sr_sold_to nvarchar(10)='10357882';
+			            DECLARE @mfr_id NVARCHAR(10)='7000053';
                           SELECT        
-								         [key]=m.[SR_Sold_To] +'|'+ m.material
-                                        ,[sr_soldto]=m.SR_Sold_To
+								         [key]=CONCAT(m.mfr, '|',  m.material)
+                                        ,[mfr_id]=m.mfr
 				                        ,m.material
 				                        ,[material_type]= 'internal_part_cto_result'
-				                        ,[partner_category1]= p.[partner_category1]
+				                        ,[partner_category1]= coalesce(p.[partner_category1],'Other')
 				                        ,[partner_category2]= p.[partner_category2]
 				                        ,[partner_category3]= p.[partner_category3]
 				                        ,[partner_category4]= p.[partner_category4]
@@ -157,20 +158,21 @@ sr_tables={
 				          LEFT JOIN
 						        [marketing_prod].[dbo].[prod_material] AS m ON 
 						        p.material=SUBSTRING(m.mfr_part_number,9,2) 
-						        and p.SR_SoldTo=m.SR_Sold_To										
+						        and p.[mfr_id]=m.mfr									
 
 				          WHERE 
 						        p.Material_type='internal_part_cto'
-						        AND p.SR_SoldTo=@Sr_sold_to
+						        AND p.[mfr_id]=@mfr_id
               """}
-          ,'10986883':
+          ,'7021707':
                 {'cto_flag':True,
                   'cto_str_proc':"""
-			        DECLARE @Sr_sold_to nvarchar(10)='10986883';
+			        DECLARE @mfr_id NVARCHAR(10)='7021707';
+
 
                     SELECT 
-							     [key]=m.[SR_Sold_To] +'|'+ m.material
-                                ,[sr_soldto]=m.SR_Sold_To
+							     [key]=CONCAT(m.mfr, '|',  m.material)
+                                ,[mfr_id]=m.mfr
 				                ,m.material
 				                ,[material_type]= 'internal_part_cto_result'
 				                ,[partner_category1]= case 
@@ -181,36 +183,34 @@ sr_tables={
 							                                   when m.[material] like 'CSE%' then 'Barco | Collaboration'
                                                       else 'Barco | Display' end 
 				                ,[partner_category2]= NULL
-				                ,[partner_category3]= p.[partner_category3]
-				                ,[partner_category4]= p.[partner_category4]
-                                ,[partner_category5]= p.[partner_category5]
-                                ,[partner_category6]= p.[partner_category6]
-				                ,[Partner_Price]= p.[Partner_Price]
-				                ,[sender]= p.[sender]
-				                ,[append_date]=p.[append_date]
-                                ,[Material_Rebate]=p.[Material_Rebate]
+				                ,[partner_category3]= NULL
+				                ,[partner_category4]= NULL
+                                ,[partner_category5]= NULL
+                                ,[partner_category6]= NULL
+				                ,[Partner_Price]= NULL
+				                ,[sender]= NULL
+				                ,[append_date]=NULL
+                                ,[Material_Rebate]=NULL
 
 			         INTO ##PM_cat_temp
 			          -- select * 
 			         FROM 
-			         [marketing_work].[pm_na].[pm_categories_prd] AS p
+			         [marketing_prod].[dbo].[prod_material] AS m
 			 			
-			         LEFT JOIN 
-					        [marketing_prod].[dbo].[prod_material] AS m on p.Material=m.material and p.SR_SoldTo=m.SR_Sold_To
+
 			         WHERE 
-				        p.Material_type='internal_part_cto'
-				        AND p.SR_SoldTo=@Sr_sold_to
+				         m.mfr=@mfr_id
               """}
-          ,'10798467':
+          ,'7042044':
                 {'cto_flag':True,
                   'cto_str_proc':"""
-				  DECLARE @Sr_sold_to nvarchar(10)='10798467';
+				  DECLARE @mfr_id NVARCHAR(10)='7042044';
 
                   SELECT 
-				                 [key]=m.[SR_Sold_To] +'|'+ m.material
-                                ,[sr_soldto]=m.SR_Sold_To
+								 [key]=CONCAT(m.mfr, '|',  m.material)
+                                ,[mfr_id]=m.mfr
 				                ,m.material
-				                ,[material_type]= 'internal_part'
+				                ,[material_type]= 'internal_part_cto_result'
 				                ,[partner_category1]=CASE 
                                                   WHEN m.material like '%AFF%' THEN 'FLASH'
 												  WHEN m.material like '%FAS%' THEN 'FAS'
@@ -231,16 +231,16 @@ sr_tables={
 			 INTO ##PM_cat_temp
 			  -- select * 
 			 FROM [marketing_prod].[dbo].[prod_material] AS m
-			 WHERE m.SR_Sold_To=@Sr_sold_to
+			 WHERE m.mfr=@mfr_id
               """}
-         ,'10278736':
+         ,'7000140':
                 {'cto_flag':True,
                   'cto_str_proc':"""
-                 DECLARE @Sr_sold_to nvarchar(10)='10278736';
+                 DECLARE @mfr_id NVARCHAR(10)='7000140';
 
                   SELECT 
-				                 [key]=m.[SR_Sold_To] +'|'+ m.material
-                                ,[sr_soldto]=m.SR_Sold_To
+								 [key]=CONCAT(m.mfr, '|',  m.material)
+                                ,[mfr_id]=m.mfr
 				                ,m.material
 				                ,[material_type]= p.[material_type]
 				                ,[partner_category1]= p.[partner_category1]
@@ -271,10 +271,12 @@ sr_tables={
 			 FROM [marketing_prod].[dbo].[prod_material] AS m
 
 			 INNER JOIN 
-					[marketing_work].[pm_na].[pm_categories_prd] AS p on p.Material=m.material and p.SR_SoldTo=m.SR_Sold_To
+					[marketing_work].[pm_na].[pm_categories_prd] AS p on 
+                    p.Material=m.material 
+                    AND p.mfr_id=m.mfr
 
 			 WHERE 
-					 m.SR_Sold_To = @Sr_sold_to
+					 m.mfr = @mfr_id
               """}
            }
 

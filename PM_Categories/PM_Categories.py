@@ -15,7 +15,7 @@ from    email.mime.base import MIMEBase
 from    email.mime.image import MIMEImage
 from    email.mime.text import MIMEText
 from    email import encoders
-from    dictionary_list import sr_tables
+from    dictionary_list import mfr_table
 from    config import *
 from    sqlalchemy import create_engine
 from    sqlalchemy import types as clm_type
@@ -91,18 +91,20 @@ def runCTO():
     to = 'yunior.rosellruiz@insight.com'
     try:
 
-        for s in sr_tables:
-            sr_soldto = sr_tables.get(s)
+        for s in mfr_table:
+            mfr_id = mfr_table.get(s)
             connection = engine.connect()
-            if sr_soldto['cto_flag']==True:
+            trans = connection.begin() 
+            if mfr_id['cto_flag']==True:
                     #stored procedure to update prod table
-                    query=sr_soldto['cto_str_proc'].replace("'","''")                
+                    query=mfr_id['cto_str_proc'].replace("'","''")                
                     store_procedure ="EXEC [dbo].[pm_categories] @query={q}".format(q="'"+ query +"'")                
                     try:
                         #cursor = connection.cursor()
-                        connection.execute(store_procedure)          
+                        connection.execute(store_procedure) 
+                        trans.commit()
                         connection.close()
-                        #connection.commit()
+
                     except Exception as e:
                         logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
                         logging.warning(str(e))
@@ -133,7 +135,7 @@ def main():
     #to="yunior.rosellruiz@insight.com"
     #send_email("FILES Mapping",files,to,None)
     #else:
-    #    sr_soldto=sys.argv[0] 
+    #    mfr_id=sys.argv[0] 
 
     ####testing
     #subject="mapping=standard"
@@ -164,11 +166,11 @@ def main():
                 #pushes parts from stg to prd
                 push(parts,stg_table,store_procedure)
 
-                sr_soldtos= parts['sr_soldto'].unique() if mapping=="standard" else parts['Component_SR_SoldTo'].unique() if mapping=="component" else None
+                mfr_ids= parts['mfr_id'].unique() if mapping=="standard" else parts['Component_mfr_id'].unique() if mapping=="component" else None
 
-                for sr_soldto in sr_soldtos: 
+                for mfr_id in mfr_ids: 
             
-                    sr_table=sr_tables.get(sr_soldto)
+                    sr_table=mfr_table.get(mfr_id)
 
                     if sr_table and sr_table['cto_flag']:
                         connection = engine.raw_connection()
